@@ -16,7 +16,6 @@ import org.springframework.transaction.support.DefaultTransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import javax.annotation.PostConstruct;
-import javax.persistence.EntityManager;
 import java.util.List;
 
 @Service
@@ -26,8 +25,6 @@ public class SomeValueService {
 
     private final SomeValueRepository someValueRepository;
     private final PlatformTransactionManager transactionManager;
-
-    private final EntityManager entityManager;
 
     @PostConstruct
     @Transactional
@@ -66,23 +63,22 @@ public class SomeValueService {
         var transactionDefinition = new DefaultTransactionDefinition();
         transactionDefinition.setPropagationBehavior(DefaultTransactionDefinition.PROPAGATION_REQUIRES_NEW);
         var transactionTemplate = new TransactionTemplate(transactionManager, transactionDefinition);
-        while (someValueRepository.existsByStatus(Status.PENDING)) {
-            transactionTemplate.executeWithoutResult(status -> {
-                someValueRepository.findAllForProcessingEnties(PageRequest.of(0, 4))
-                        .forEach(someValue -> {
-                            try {
-                                transactionTemplate.executeWithoutResult(status1 -> {
-                                    someValue.setStatus(Status.PROCESSED);
-                                    if (someValue.getName().equals("hertam")) {
-                                        throw new RuntimeException("hertam");
-                                    }
-                                });
-                            } catch (Throwable e) {
-                                log.info("shit");
-                            }
-                        });
-            });
-        }
+        transactionTemplate.executeWithoutResult(status -> {
+            someValueRepository.findAllForProcessingEnties(PageRequest.of(0, 4))
+                    .forEach(someValue -> {
+                        try {
+                            transactionTemplate.executeWithoutResult(status1 -> {
+                                someValue.setStatus(Status.PROCESSED);
+                                someValueRepository.save(someValue);
+                                if (someValue.getName().equals("hertam")) {
+                                    throw new RuntimeException("hertam");
+                                }
+                            });
+                        } catch (Throwable e) {
+                            log.info("shit");
+                        }
+                    });
+        });
 
     }
 }
